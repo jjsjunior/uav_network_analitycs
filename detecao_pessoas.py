@@ -153,55 +153,59 @@ def main():
 	global return_tensors
 	pb_car_detect_file = caminho_modelo_yolo
 	return_tensors = utils.read_pb_return_tensors(graph_car_detect, pb_car_detect_file, return_elements)
-	img_path_list = [f for f in os.listdir(caminho_base_arquivos) if isfile(join(caminho_base_arquivos, f))]
+	# img_path_list = [f for f in os.listdir(caminho_base_arquivos) if isfile(join(caminho_base_arquivos, f))]
 	resultados_list = []
-	for img_path in img_path_list:
-		original_image = cv2.imread(join(caminho_base_arquivos, img_path))
-		original_image = cv2.cvtColor(original_image, cv2.COLOR_BGR2RGB)
-		org_img_shape = original_image.shape[:2]
-		# input_size_car_detect = 416
-		input_size_car_detect = 3840
-		image_data = utils.image_preporcess(np.copy(original_image), [input_size_car_detect, input_size_car_detect])
-		image_data = image_data[np.newaxis, ...]
-		pred_sbbox, pred_mbbox, pred_lbbox = session_car_detection.run(
-			[return_tensors[1], return_tensors[2], return_tensors[3]],
-			feed_dict={return_tensors[0]: image_data})
-		pred_bbox = np.concatenate([np.reshape(pred_sbbox, (-1, 5 + num_classes)),
-									np.reshape(pred_mbbox, (-1, 5 + num_classes)),
-									np.reshape(pred_lbbox, (-1, 5 + num_classes))], axis=0)
+	for path, currentDirectory, files in os.walk(caminho_base_arquivos):
+		for img_path in files:
+			if not img_path.endswith('.jpg'):
+				continue
+			absolute_image_file_path = os.path.join(path, img_path)
+			print(absolute_image_file_path)
+			original_image = cv2.imread(absolute_image_file_path)
+			original_image = cv2.cvtColor(original_image, cv2.COLOR_BGR2RGB)
+			org_img_shape = original_image.shape[:2]
+			# input_size_car_detect = 416
+			input_size_car_detect = 3840
+			image_data = utils.image_preporcess(np.copy(original_image), [input_size_car_detect, input_size_car_detect])
+			image_data = image_data[np.newaxis, ...]
+			pred_sbbox, pred_mbbox, pred_lbbox = session_car_detection.run(
+				[return_tensors[1], return_tensors[2], return_tensors[3]],
+				feed_dict={return_tensors[0]: image_data})
+			pred_bbox = np.concatenate([np.reshape(pred_sbbox, (-1, 5 + num_classes)),
+										np.reshape(pred_mbbox, (-1, 5 + num_classes)),
+										np.reshape(pred_lbbox, (-1, 5 + num_classes))], axis=0)
 
-		bboxes_cars = utils.postprocess_boxes(pred_bbox, org_img_shape, input_size_car_detect, 0.35)
-		# bboxes = utils.nms(bboxes, 0.25, method='nms')
-		bboxes_cars = utils.nms_np_bboxes(bboxes_cars, 0.45, method='nms')
-		bbox_red_color = (255, 0, 0)
-		predictions_bbox_frame = []
-		seg_threshold = 0.5
-		if len(bboxes_cars) > 0:
-			for indice_bbox, bbox_car in enumerate(bboxes_cars):
-				# top_left_car, bottom_right_car = (int(bbox_car[0]), int(bbox_car[1])), (int(bbox_car[2]), int(bbox_car[3]))
-				top_left_car, bottom_right_car = (float(bbox_car[0]), float(bbox_car[1])), (float(bbox_car[2]), float(bbox_car[3]))
-				class_detect_object_coco = int(bbox_car[5])
-				if class_detect_object_coco == PERSON_CLASS_COCO_DS:
-					predictions_bbox_frame.append((top_left_car[0], top_left_car[1], bottom_right_car[0], bottom_right_car[1]))
-					# cv2.rectangle(original_image, top_left_car, bottom_right_car, bbox_red_color, 1)  # filled
-
-		# cv2.rectangle(image_nd, (top_left_abs[0], top_left_abs[1]), (bottom_right_abs[0], bottom_right_abs[1]),
-		# 			  bbox_color_gt, thickness)  # filled
-		# image = Image.fromarray(original_image)
-		# image.save('/media/jones/datarec/deteccao_pessoas/amostras/amostra.jpg')
-		ground_truth_frame = dict_bbox_gt[img_path.split('/')[-1]]
-		true_positive_frame, false_positive_frame, false_negative_frame = evaluate_precision_recall(ground_truth_frame, predictions_bbox_frame, seg_threshold)
-		print('true_positive_frame {} false_positive_frame {} false_negative_frame {}'.format(true_positive_frame, false_positive_frame, false_negative_frame))
-		resultados_list.append([img_path.split('/')[-1], true_positive_frame, false_positive_frame, false_negative_frame])
-		indicadores_validacao.true_positive += true_positive_frame
-		indicadores_validacao.false_positive += false_positive_frame
-		indicadores_validacao.false_negative += false_negative_frame
-	indicadores_validacao.imprmir_ftn_all()
-	indicadores_validacao.imprimir_precision_recall_all()
-	with open(nome_arquivo_resultados, 'w') as resultados_file:
-		csv_writer = csv.writer(resultados_file, delimiter=';')
-		csv_writer.writerow(['amostra', 'true_positive_frame', 'false_positive_frame', 'false_negative_frame'])
-		csv_writer.writerows(resultados_list)
+			bboxes_cars = utils.postprocess_boxes(pred_bbox, org_img_shape, input_size_car_detect, 0.35)
+			# bboxes = utils.nms(bboxes, 0.25, method='nms')
+			bboxes_cars = utils.nms_np_bboxes(bboxes_cars, 0.45, method='nms')
+			bbox_red_color = (255, 0, 0)
+			predictions_bbox_frame = []
+			seg_threshold = 0.5
+			if len(bboxes_cars) > 0:
+				for indice_bbox, bbox_car in enumerate(bboxes_cars):
+					# top_left_car, bottom_right_car = (int(bbox_car[0]), int(bbox_car[1])), (int(bbox_car[2]), int(bbox_car[3]))
+					top_left_car, bottom_right_car = (float(bbox_car[0]), float(bbox_car[1])), (float(bbox_car[2]), float(bbox_car[3]))
+					class_detect_object_coco = int(bbox_car[5])
+					if class_detect_object_coco == PERSON_CLASS_COCO_DS:
+						predictions_bbox_frame.append((top_left_car[0], top_left_car[1], bottom_right_car[0], bottom_right_car[1]))
+						# cv2.rectangle(original_image, top_left_car, bottom_right_car, bbox_red_color, 1)  # filled
+			# cv2.rectangle(image_nd, (top_left_abs[0], top_left_abs[1]), (bottom_right_abs[0], bottom_right_abs[1]),
+			# 			  bbox_color_gt, thickness)  # filled
+			# image = Image.fromarray(original_image)
+			# image.save('/media/jones/datarec/deteccao_pessoas/amostras/amostra.jpg')
+			ground_truth_frame = dict_bbox_gt[img_path.split('/')[-1]]
+			true_positive_frame, false_positive_frame, false_negative_frame = evaluate_precision_recall(ground_truth_frame, predictions_bbox_frame, seg_threshold)
+			print('true_positive_frame {} false_positive_frame {} false_negative_frame {}'.format(true_positive_frame, false_positive_frame, false_negative_frame))
+			resultados_list.append([img_path.split('/')[-1], true_positive_frame, false_positive_frame, false_negative_frame])
+			indicadores_validacao.true_positive += true_positive_frame
+			indicadores_validacao.false_positive += false_positive_frame
+			indicadores_validacao.false_negative += false_negative_frame
+		indicadores_validacao.imprmir_ftn_all()
+		indicadores_validacao.imprimir_precision_recall_all()
+		with open(nome_arquivo_resultados, 'w') as resultados_file:
+			csv_writer = csv.writer(resultados_file, delimiter=';')
+			csv_writer.writerow(['amostra', 'true_positive_frame', 'false_positive_frame', 'false_negative_frame'])
+			csv_writer.writerows(resultados_list)
 
 
 
