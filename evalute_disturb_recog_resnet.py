@@ -1,5 +1,5 @@
 from __future__ import print_function
-
+import csv
 import datetime
 
 from tqdm import tqdm
@@ -33,14 +33,12 @@ channel = 3
 #     return np.array(list_labels)
 
 
-def load_data(base_directory_dataset):
+def load_data(base_directory_original, base_directory_disturbed):
     images = np.array([]).reshape(0, height, width, channel)
-    directory_dataset_raw = os.path.abspath(os.path.join(base_directory_dataset,'original_frames_450'))
-    filelist_raw = glob.glob(directory_dataset_raw + '/*.jpg')
+    filelist_raw = glob.glob(base_directory_original + '/*.jpg')
     labels_0 = np.zeros(len(filelist_raw))
     images_raw = np.array([np.array(Image.open(fname)) for fname in filelist_raw])
-    directory_dataset_disturb = os.path.abspath(os.path.join(base_directory_dataset, 'loss_frames_450'))
-    filelist_disturb = glob.glob(directory_dataset_disturb + '/*.jpg')
+    filelist_disturb = glob.glob(base_directory_disturbed + '/*.jpg')
     labels_1 = np.ones(len(filelist_disturb))
     images_disturb = np.array([np.array(Image.open(fname)) for fname in filelist_disturb])
     images = np.append(images, images_raw, axis=0)
@@ -79,8 +77,9 @@ def get_char_labels_idx_array():
 
 
 def main(args):
-    dir_images_test = args.dir_images_test
-    images, labels, test_set = load_data(dir_images_test)
+    base_directory_disturbed = args.base_directory_disturbed
+    base_directory_original = args.base_directory_original
+    images, labels, test_set_file_names = load_data(base_directory_original, base_directory_disturbed)
     # images = subtract_pixel_mean(images)
     model = keras.models.load_model(args.model_path)
     batch_size = 64
@@ -92,6 +91,7 @@ def main(args):
     y_true_label_array = np.zeros((nrof_samples,))
     y_predited_label_array = np.zeros((nrof_samples,))
     tempo_batch_list = []
+    resultados_list = []
     for i in tqdm(range(qtd_steps)):
         idx_start = i*batch_size
         idx_end = idx_start + batch_size
@@ -109,11 +109,14 @@ def main(args):
         # y_predited_label_array[idx_start:idx_end] = get_label_from_array(y_predicted_classes)
         # y_true_label_array[idx_start:idx_end] = get_label_from_array(y_batch)
         for idx, predicted_class in enumerate(y_predicted_classes):
+            idx_file = idx_start + idx
+            file_name = test_set_file_names[idx_file]
+            y_predicted_label = get_label(int(predicted_class))
+            y_true_label = get_label(int(y_batch[idx]))
+            resultados_list.append([file_name.split('/')[-1], y_true_label, y_predicted_label])
             if int(predicted_class)!=int(y_batch[idx]):
                 print('prediction error')
-                print(test_set[idx_start+idx])
-                y_predicted_label = get_label(int(predicted_class))
-                y_true_label = get_label(int(y_batch[idx]))
+                print(test_set_file_names[idx_file])
                 atualizar_contagem_erros(erros_true_label_dict, y_predicted_label, y_true_label)
                 atualizar_contagem_erros(erros_mismatch_label_dict, y_true_label, y_predicted_label)
             else:
@@ -135,9 +138,14 @@ def main(args):
     print('estatistica de tempo. total: {} | media: {} | maximo: {} | minimo: {}'.format(
         sum(tempo_batch_list), statistics.mean(tempo_batch_list), max(tempo_batch_list), min(tempo_batch_list)))
     print_errors(erros_mismatch_label_dict)
-    disp_conf_matrix.plot()
-    plt.show()
-    print('xpto')
+    with open(args.nome_arquivo_resultados, 'w') as resultados_file:
+        csv_writer = csv.writer(resultados_file, delimiter=';')
+        csv_writer.writerow(['amostra', 'y_true_label', 'y_predicted_label'])
+        csv_writer.writerows(resultados_list)
+    # disp_conf_matrix.figure_.savefig(os.path.abspath(os.path.join(os.path.dirname(args.nome_arquivo_resultados)),'confusion_matrix.png'))
+    # disp_conf_matrix.plot()
+    # plt.show()
+    print('fim')
 
 
 
@@ -157,8 +165,10 @@ def print_errors(errors_dict):
 
 def parse_arguments(argv):
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dir_images_test', type=str)
     parser.add_argument('--model_path', type=str)
+    parser.add_argument('--nome_arquivo_resultados', type=str)
+    parser.add_argument('--base_directory_original', type=str)
+    parser.add_argument('--base_directory_disturbed', type=str)
     return parser.parse_args(argv)
 
 

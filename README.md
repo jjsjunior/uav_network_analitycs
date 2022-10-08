@@ -59,35 +59,7 @@ problema ao definir o LR. encontrada issue no proprio repo:
 Darkflow does not use the learning rate in .cfg. Use --lr instead.  
 `https://github.com/thtrieu/darkflow/issues/515#issuecomment-356474112`
 
-### comear a treinar a partir de um checkpoint
-* Transformar os arquivos de ckp para o formator protobuf (.pb)
+### Docker para codigo de validacao do modelo de classificação de imagens
 
-`https://github.com/thtrieu/darkflow/issues/869#issuecomment-412757194`
-```
-python flow.py
---model
-cfg/yolo-character.cfg
---load
--1
---savepb
-```
-* Definir o parâmetro load no train-character.py (utiliza o ultimo checkpoint):  
-`"load": -1`
-
-## DS-xpto
-* descrição dataset  
-
-
-
-
-Modelo | loss   | acc   
------------- |--------| -------------   
-xpto | 2.67   | 0.8517  
-char_recog_ceia_2 | 0.9905 | 0.9024 
-Ceia_ResNet20v1_model | 0.5065 | 0.93399  
-char_recog_ceia_3 | 0.85   | 0.9123
-ceia_char_recog_2_ResNet20v1_model.086 | 0.4451 | **0.94283**  
-ceia_char_recog_3_ResNet29v2_model | 0.4534 | 0.9412  
-ceia_char_recog_4_ResNet29v2_model | 0.3613 | 0.9409  
-ceia_char_recog_5_ResNet29v2_model | 0.3486 | 0.9442
-ceia_char_recog_7_gaussian_ResNet29v2_model.088.h5 | 0.29   | 0.9541
+docker build  -f Dockerfile_classificador -t classificador_imagem_uav . 
+docker run --gpus "device=0" --rm --volume /media/jones/datarec/lpr/dataset/versao_atual/preprocessados_0308/train:/home/dataset/train --volume /media/jones/datarec/lpr/dataset/versao_atual/preprocessados_0308/validation:/home/dataset/validation --volume /media/jones/datarec/lpr/dataset/versao_atual/preprocessados_0308/logscarro30:/home/logs --volume /media/jones/datarec/lpr/dataset/versao_atual/preprocessados_0308/trained_models:/home/modelos  --name ped_sspgo-tensorflow-lpd nvcr.io/ped_ssp/tensorflow_114_lpd  --train-dir /home/dataset/train --validate-dir /home/dataset/validation --logdir /home/logs --model models/ceia_eccv-model_dpout05_multiclass --name model_ceia_char_dopout05_car_moto_multi_26 --output-dir /home/modelos/ -op Adam -lr .001 -its 300000 -bs 32
