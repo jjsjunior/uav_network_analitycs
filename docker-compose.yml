@@ -1,0 +1,17 @@
+version: "2.3"  # the only version where 'runtime' option is supported
+
+services:
+  person_detector:
+    image: person_detector
+    container_name: person_detector
+    build: .
+    # Make Docker create the container with NVIDIA Container Toolkit
+    # You don't need it if you set 'nvidia' as the default runtime in
+    # daemon.json.
+    runtime: nvidia
+    # the lines below are here just to test that TF can see GPUs
+    #command:
+    #  - "tail -f /dev/null"
+    volumes:
+      - ./media/:/media
+    tty: true

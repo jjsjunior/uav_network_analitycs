@@ -1,3 +1,9 @@
+# My files
+media/*
+annotations.xml
+yolov3_coco.pb
+# ---
+
 .ipynb_checkpoints
 .DS_Store
 **/.idea
