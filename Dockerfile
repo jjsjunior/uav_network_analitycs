@@ -10,7 +10,8 @@ RUN python3.7 -m pip install --upgrade pip
 WORKDIR /app
 
 # add files
-COPY ./ .
+COPY ./*.py .
+COPY ./requirements.txt .
 
 # Install requirements
 RUN pip3.7 install -r requirements.txt
