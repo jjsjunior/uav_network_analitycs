@@ -35,13 +35,15 @@ channel = 3
 
 def load_data(base_directory_original, base_directory_disturbed):
     images = np.array([]).reshape(0, height, width, channel)
-    filelist_raw = glob.glob(base_directory_original + '/*.jpg')
+    filelist_raw = glob.glob(base_directory_original + '/**/*.jpg', recursive=True)
     labels_0 = np.zeros(len(filelist_raw))
     images_raw = np.array([np.array(Image.open(fname)) for fname in filelist_raw])
-    filelist_disturb = glob.glob(base_directory_disturbed + '/*.jpg')
+    images = np.append(images, images_raw, axis=0)
+    if base_directory_disturbed is None:
+        return images, labels_0, filelist_raw
+    filelist_disturb = glob.glob(base_directory_disturbed + '/**/*.jpg', recursive=True)
     labels_1 = np.ones(len(filelist_disturb))
     images_disturb = np.array([np.array(Image.open(fname)) for fname in filelist_disturb])
-    images = np.append(images, images_raw, axis=0)
     images = np.append(images, images_disturb, axis=0)
     labels = np.append(labels_0, labels_1, axis=0)
     test_set = filelist_raw
@@ -77,11 +79,28 @@ def get_char_labels_idx_array():
 
 
 def main(args):
-    base_directory_disturbed = args.base_directory_disturbed
+    model = keras.models.load_model(args.model_path)
+    args.nome_arquivo_resultados
     base_directory_original = args.base_directory_original
+    list_dir = os.listdir(base_directory_original)
+    nome_arquivo_resultados = args.nome_arquivo_resultados
+    if not os.path.isfile(list_dir[0]):
+        for directory in list_dir:
+            nome_arquivo = os.path.basename(nome_arquivo_resultados)
+            nome_arquivo = os.path.basename(nome_arquivo).split('.')[0] + '_'+directory+'.csv'
+            nome_completo_arquivo = nome_arquivo_resultados.replace(os.path.basename(nome_arquivo_resultados), nome_arquivo)
+            abs_path_dir = os.path.abspath(os.path.join(base_directory_original, directory))
+            predict(abs_path_dir, None,  model, nome_completo_arquivo)
+
+
+
+
+def predict(base_directory_original, base_directory_disturbed, model, nome_arquivo_resultados):
+    base_directory_disturbed = base_directory_disturbed
+    base_directory_original = base_directory_original
     images, labels, test_set_file_names = load_data(base_directory_original, base_directory_disturbed)
     # images = subtract_pixel_mean(images)
-    model = keras.models.load_model(args.model_path)
+
     batch_size = 64
     nrof_samples = len(images)
     qtd_steps = int(nrof_samples / batch_size)+1
@@ -113,7 +132,7 @@ def main(args):
             file_name = test_set_file_names[idx_file]
             y_predicted_label = get_label(int(predicted_class))
             y_true_label = get_label(int(y_batch[idx]))
-            resultados_list.append([file_name.split('/')[-1], y_true_label, y_predicted_label])
+            resultados_list.append([file_name, y_true_label, y_predicted_label])
             if int(predicted_class)!=int(y_batch[idx]):
                 print('prediction error')
                 print(test_set_file_names[idx_file])
@@ -138,7 +157,7 @@ def main(args):
     print('estatistica de tempo. total: {} | media: {} | maximo: {} | minimo: {}'.format(
         sum(tempo_batch_list), statistics.mean(tempo_batch_list), max(tempo_batch_list), min(tempo_batch_list)))
     print_errors(erros_mismatch_label_dict)
-    with open(args.nome_arquivo_resultados, 'w') as resultados_file:
+    with open(nome_arquivo_resultados, 'w') as resultados_file:
         csv_writer = csv.writer(resultados_file, delimiter=';')
         csv_writer.writerow(['amostra', 'y_true_label', 'y_predicted_label'])
         csv_writer.writerows(resultados_list)
@@ -168,7 +187,7 @@ def parse_arguments(argv):
     parser.add_argument('--model_path', type=str)
     parser.add_argument('--nome_arquivo_resultados', type=str)
     parser.add_argument('--base_directory_original', type=str)
-    parser.add_argument('--base_directory_disturbed', type=str)
+    parser.add_argument('--base_directory_disturbed', type=str, default=None)
     return parser.parse_args(argv)
 
 
