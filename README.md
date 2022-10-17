@@ -17,6 +17,10 @@ Libraries dependancies:
  ### Criação de ambiente conda 
 sess = tf.Session(config=tf.ConfigProto(log_device_placement=True))
 
+#### Yolov3 utilizada no projeto:
+
+`https://github.com/YunYang1994/tensorflow-yolov3.git`
+
 #criar ambiente python 3.7.10  
 
 `conda create --prefix ../auv/env python=3.7.10`

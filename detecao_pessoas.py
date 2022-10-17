@@ -141,12 +141,14 @@ def main():
 	parser.add_argument('-cba ' ,'--caminho_base_arquivos' ,type=str, default ='/media/jones/datarec/deteccao_pessoas/5g_dataset_person_detect/rate_frames' ,help='')
 	parser.add_argument('-car ', '--nome_arquivo_resultados', type=str, default='resultados.csv', help='')
 	parser.add_argument('-cmy ', '--caminho_modelo_yolo', type=str, default='resultados.csv', help='')
-	parser.add_argument('-caa ', '--caminho_arquivo_anotacoes', type=str, default='resultados.csv', help='')
+	parser.add_argument('-caa ', '--caminho_arquivo_anotacoes', type=str, default='', help='')
+	parser.add_argument('-cdbb ', '--caminho_diretorio_bbox', type=str, default='', help='')
 	args = parser.parse_args()
 	caminho_base_arquivos = args.caminho_base_arquivos
 	nome_arquivo_resultados = args.nome_arquivo_resultados
 	caminho_modelo_yolo = args.caminho_modelo_yolo
 	caminho_arquivo_anotacoes = args.caminho_arquivo_anotacoes
+	caminho_diretorio_bbox = args.caminho_diretorio_bbox
 	indicadores_validacao = MetricIndicator()
 	dict_bbox_gt = carregar_ground_truth(caminho_arquivo_anotacoes)
 	session_car_detection = tf.Session(graph=graph_car_detect)
@@ -188,11 +190,15 @@ def main():
 					class_detect_object_coco = int(bbox_car[5])
 					if class_detect_object_coco == PERSON_CLASS_COCO_DS:
 						predictions_bbox_frame.append((top_left_car[0], top_left_car[1], bottom_right_car[0], bottom_right_car[1]))
-						# cv2.rectangle(original_image, top_left_car, bottom_right_car, bbox_red_color, 1)  # filled
+						cv2.rectangle(original_image, (int(top_left_car[0]),int(top_left_car[1])), (int(bottom_right_car[0]),int(bottom_right_car[1])), bbox_red_color, 1)  # filled
 			# cv2.rectangle(image_nd, (top_left_abs[0], top_left_abs[1]), (bottom_right_abs[0], bottom_right_abs[1]),
 			# 			  bbox_color_gt, thickness)  # filled
 			# image = Image.fromarray(original_image)
 			# image.save('/media/jones/datarec/deteccao_pessoas/amostras/amostra.jpg')
+			if len(caminho_diretorio_bbox) > 5:
+				image = Image.fromarray(original_image)
+				nome_arquivo_completo = os.path.abspath(os.path.join(caminho_diretorio_bbox, img_path))
+				image.save(nome_arquivo_completo)
 			ground_truth_frame = dict_bbox_gt[img_path.split('/')[-1]]
 			true_positive_frame, false_positive_frame, false_negative_frame = evaluate_precision_recall(ground_truth_frame, predictions_bbox_frame, seg_threshold)
 			print('true_positive_frame {} false_positive_frame {} false_negative_frame {}'.format(true_positive_frame, false_positive_frame, false_negative_frame))
