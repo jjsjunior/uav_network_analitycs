@@ -6,6 +6,7 @@ import random
 import colorsys
 import numpy as np
 import tensorflow as tf
+import xml.etree.ElementTree as ET
 
 from glob import glob
 
@@ -314,3 +315,20 @@ def postprocess_boxes(pred_bbox, org_img_shape, input_size, score_threshold):
     return np.concatenate([coors, scores[:, np.newaxis], classes[:, np.newaxis]], axis=-1)
 
 
+def carregar_cvat_ground_truth(caminho_arquivo_anotacoes):
+	annotation_tree = ET.parse(caminho_arquivo_anotacoes)
+	tag_raiz = annotation_tree.getroot()
+	dict_bbox_gt = {}
+	for indice_tag_image, image_tag in enumerate(tag_raiz.findall('image')):
+		nome_frame = image_tag.get('name')
+		boxes = image_tag.findall('box')
+		lista_bbox_gt_frame = []
+		for box in boxes:
+			bbox_plate = [int(float(box.get('xtl'))), int(float(box.get('ytl'))), int(float(box.get('xbr'))), int(float(box.get('ybr'))), 0, 0, 0]
+			top_left = float(box.get('xtl')), float(box.get('ytl'))
+			bottom_right = float(box.get('xbr')), float(box.get('ybr'))
+			lista_bbox_gt_frame.append((top_left[0],top_left[1], bottom_right[0], bottom_right[1]))
+			# lista_bbox_gt_frame.append(bbox_plate)
+			print(image_tag.tag, image_tag.attrib, box.get('label'))
+		dict_bbox_gt[nome_frame] = np.array(lista_bbox_gt_frame)
+	return dict_bbox_gt

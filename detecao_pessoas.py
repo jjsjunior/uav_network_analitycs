@@ -9,6 +9,7 @@ import  os
 import tensorflow as tf
 import statistics
 from os.path import isfile, join
+from dict2xml import dict2xml
 
 PERSON_CLASS_COCO_DS = 0
 
@@ -102,25 +103,6 @@ def calc_iou(gt_bbox, pred_bbox):
 
 
 
-def carregar_ground_truth(caminho_arquivo_anotacoes):
-	# caminho_completo_arquivo = '/media/jones/datarec/deteccao_pessoas/5g_dataset_person_detect/annotations.xml'
-	annotation_tree = ET.parse(caminho_arquivo_anotacoes)
-	tag_raiz = annotation_tree.getroot()
-	dict_bbox_gt = {}
-	for indice_tag_image, image_tag in enumerate(tag_raiz.findall('image')):
-		nome_frame = image_tag.get('name')
-		boxes = image_tag.findall('box')
-		lista_bbox_gt_frame = []
-		for box in boxes:
-			bbox_plate = [int(float(box.get('xtl'))), int(float(box.get('ytl'))), int(float(box.get('xbr'))), int(float(box.get('ybr'))), 0, 0, 0]
-			top_left = float(box.get('xtl')), float(box.get('ytl'))
-			bottom_right = float(box.get('xbr')), float(box.get('ybr'))
-			lista_bbox_gt_frame.append((top_left[0],top_left[1], bottom_right[0], bottom_right[1]))
-			# lista_bbox_gt_frame.append(bbox_plate)
-			print(image_tag.tag, image_tag.attrib, box.get('label'))
-		dict_bbox_gt[nome_frame] = np.array(lista_bbox_gt_frame)
-	return dict_bbox_gt
-
 
 def evaluate_precision_recall(ground_truth_frame: list, predictions_bbox_frame: list, iou_threshold: int = 0.6):
 	matched_ground_truth_indexes = []
@@ -136,27 +118,60 @@ def evaluate_precision_recall(ground_truth_frame: list, predictions_bbox_frame: 
 	return true_positive, false_positive, false_negative
 
 
+def adicionar_bbox(xml_image, predictions_bbox_frame, label, ground_truth_frame, iou_threshold: int = 0.6):
+	for prediction_bbox in predictions_bbox_frame:
+		for index_gt, gt_bbox in enumerate(ground_truth_frame):
+			iou = calc_iou(gt_bbox, prediction_bbox)
+			if iou >= iou_threshold:
+				xml_box = ET.SubElement(xml_image, "box")
+				top_left_x, top_left_y, bottom_right_x, bottom_right_y = prediction_bbox
+				xml_box.set('label', label)
+				xml_box.set('xtl', str(top_left_x))
+				xml_box.set('ytl', str(top_left_y))
+				xml_box.set('xbr', str(bottom_right_x))
+				xml_box.set('ybr', str(bottom_right_y))
+				xml_box.set('z_order', '0')
+				xml_box.set('occluded', '0')
+				xml_box.set('source', 'yolo')
+
+		#
+		# top_left_x, top_left_y, bottom_right_x, bottom_right_y = prediction_bbox
+		# box_dict = {'label': label,'xtl': top_left_x, 'ytl': top_left_y, 'xbr': bottom_right_x, 'ybr': bottom_right_y,'z_order':0, 'occluded':0, 'source':"manual"}
+		# xml_char_bbox_str = dict2xml({'box': box_dict})
+		# xml_char_bbox_element = ET.fromstring(xml_char_bbox_str)
+		# xml_image.append(xml_char_bbox_element)
+
+
+
 def main():
 	parser = argparse.ArgumentParser()
-	parser.add_argument('-cba ' ,'--caminho_base_arquivos' ,type=str, default ='/media/jones/datarec/deteccao_pessoas/5g_dataset_person_detect/rate_frames' ,help='')
+	parser.add_argument('-cba ' ,'--caminho_base_arquivos' ,type=str, default ='' ,help='')
 	parser.add_argument('-car ', '--nome_arquivo_resultados', type=str, default='resultados.csv', help='')
-	parser.add_argument('-cmy ', '--caminho_modelo_yolo', type=str, default='resultados.csv', help='')
+	parser.add_argument('-cmy ', '--caminho_modelo_yolo', type=str, default='', help='')
 	parser.add_argument('-caa ', '--caminho_arquivo_anotacoes', type=str, default='', help='')
 	parser.add_argument('-cdbb ', '--caminho_diretorio_bbox', type=str, default='', help='')
+	parser.add_argument('-cdgty ', '--caminho_diretorio_ground_truth_yolo', type=str, default='', help='')
 	args = parser.parse_args()
 	caminho_base_arquivos = args.caminho_base_arquivos
 	nome_arquivo_resultados = args.nome_arquivo_resultados
 	caminho_modelo_yolo = args.caminho_modelo_yolo
 	caminho_arquivo_anotacoes = args.caminho_arquivo_anotacoes
 	caminho_diretorio_bbox = args.caminho_diretorio_bbox
+	caminho_diretorio_ground_truth_yolo = args.caminho_diretorio_ground_truth_yolo
+	is_gerar_ground_truth_from_yolo = len(caminho_diretorio_ground_truth_yolo)>5
 	indicadores_validacao = MetricIndicator()
-	dict_bbox_gt = carregar_ground_truth(caminho_arquivo_anotacoes)
+	dict_bbox_gt = utils.carregar_cvat_ground_truth(caminho_arquivo_anotacoes)
 	session_car_detection = tf.Session(graph=graph_car_detect)
 	global return_tensors
 	pb_car_detect_file = caminho_modelo_yolo
 	return_tensors = utils.read_pb_return_tensors(graph_car_detect, pb_car_detect_file, return_elements)
 	# img_path_list = [f for f in os.listdir(caminho_base_arquivos) if isfile(join(caminho_base_arquivos, f))]
 	resultados_list = []
+	annotation_yolo_xml_root = None
+	if is_gerar_ground_truth_from_yolo:
+		# annotation_yolo_xml = dict2xml({'annotations': {'version': '1.1'}})
+		# annotation_yolo_xml_root = ET.fromstring(annotation_yolo_xml)
+		annotation_yolo_xml_root = ET.Element('annotations')
 	for path, currentDirectory, files in os.walk(caminho_base_arquivos):
 		for img_path in files:
 			if not img_path.endswith('.jpg'):
@@ -190,7 +205,7 @@ def main():
 					class_detect_object_coco = int(bbox_car[5])
 					if class_detect_object_coco == PERSON_CLASS_COCO_DS:
 						predictions_bbox_frame.append((top_left_car[0], top_left_car[1], bottom_right_car[0], bottom_right_car[1]))
-						cv2.rectangle(original_image, (int(top_left_car[0]),int(top_left_car[1])), (int(bottom_right_car[0]),int(bottom_right_car[1])), bbox_red_color, 1)  # filled
+						# cv2.rectangle(original_image, (int(top_left_car[0]),int(top_left_car[1])), (int(bottom_right_car[0]),int(bottom_right_car[1])), bbox_red_color, 1)  # filled
 			# cv2.rectangle(image_nd, (top_left_abs[0], top_left_abs[1]), (bottom_right_abs[0], bottom_right_abs[1]),
 			# 			  bbox_color_gt, thickness)  # filled
 			# image = Image.fromarray(original_image)
@@ -199,8 +214,16 @@ def main():
 				image = Image.fromarray(original_image)
 				nome_arquivo_completo = os.path.abspath(os.path.join(caminho_diretorio_bbox, img_path))
 				image.save(nome_arquivo_completo)
-			ground_truth_frame = dict_bbox_gt[img_path.split('/')[-1]]
+			nome_arquivo_frame = img_path.split('/')[-1]
+			ground_truth_frame = dict_bbox_gt[nome_arquivo_frame]
 			true_positive_frame, false_positive_frame, false_negative_frame = evaluate_precision_recall(ground_truth_frame, predictions_bbox_frame, seg_threshold)
+			if is_gerar_ground_truth_from_yolo:
+				# image_xml = dict2xml({'image': {'name': nome_arquivo_frame}})
+				# xml_image_root = ET.fromstring(image_xml)
+				xml_image_root = ET.SubElement(annotation_yolo_xml_root, "image")
+				xml_image_root.set('name', nome_arquivo_frame)
+				adicionar_bbox(xml_image_root, predictions_bbox_frame, 'person', ground_truth_frame, iou_threshold=0.4)
+				# annotation_yolo_xml_root.append(xml_image_root)
 			print('true_positive_frame {} false_positive_frame {} false_negative_frame {}'.format(true_positive_frame, false_positive_frame, false_negative_frame))
 			resultados_list.append([img_path.split('/')[-1], true_positive_frame, false_positive_frame, false_negative_frame])
 			indicadores_validacao.true_positive += true_positive_frame
@@ -212,6 +235,11 @@ def main():
 			csv_writer = csv.writer(resultados_file, delimiter=';')
 			csv_writer.writerow(['amostra', 'true_positive_frame', 'false_positive_frame', 'false_negative_frame'])
 			csv_writer.writerows(resultados_list)
+	if is_gerar_ground_truth_from_yolo:
+		xml_yolo_gt = ET.ElementTree(element=annotation_yolo_xml_root)
+		caminho_completo_saida_gt = os.path.abspath(os.path.join(caminho_diretorio_ground_truth_yolo, 'yolo_annotations.xml'))
+		xml_yolo_gt.write(caminho_completo_saida_gt)
+
 
 
 
